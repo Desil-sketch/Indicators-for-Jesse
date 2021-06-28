@@ -1,0 +1,53 @@
+from jesse.helpers import get_candle_source, slice_candles, np_shift
+import numpy as np
+from numba import njit
+import talib 
+from typing import Union
+from jesse.helpers import get_config
+from collections import namedtuple
+from numpy.lib.stride_tricks import sliding_window_view
+from scipy.ndimage.filters import maximum_filter1d, minimum_filter1d
+
+NRTR = namedtuple('NRTR',['hp', 'nrtr', 'lp','trend'])
+
+"""
+https://www.tradingview.com/script/XAscppNW-Nick-Rypock-Trailing-Reverse-NRTR/#chart-view-comments
+"""
+def nrtr(candles: np.ndarray, k: float= 2, source_type: str = "close", sequential: bool = False ) -> NRTR:    
+    candles = slice_candles(candles, sequential)
+    source = get_candle_source(candles, source_type=source_type)
+    hp, nrtr , lp, trend = fast_nrtr(source,candles,k)
+    if sequential:
+        return NRTR(hp,nrtr,lp,trend)
+    else:
+        return NRTR(hp[-1],nrtr[-1],lp[-1],trend[-1])
+    
+@njit
+def fast_nrtr(source,candles,k):
+    percentage = k * 0.01 
+    hp = np.full_like(source,0)
+    nrtr = np.full_like(source,0)
+    lp = np.full_like(source,0)
+    trend = np.full_like(source,0)
+    for i in range(source.shape[0]):
+        trend[i] = trend[i-1]
+        hp[i] = hp[i-1]
+        lp[i] = lp[i-1] 
+        nrtr[i] = nrtr[i-1]
+        if trend[i] >= 0:
+            if candles[:,2][i] > hp[i]:
+                hp[i] = candles[:,2][i] 
+            nrtr[i] = hp[i] * (1 - percentage)
+            if candles[:,2][i] <= nrtr[i]:
+                trend[i] = -1 
+                lp[i] = candles[:,2][i] 
+                nrtr[i] = lp[i] * (1 + percentage)
+        else:
+            if candles[:,2][i] < lp[i]:
+                lp[i] = candles[:,2][i] 
+            nrtr[i] = lp[i] * (1 + percentage)
+            if candles[:,2][i] > nrtr[i]:
+                trend[i] = 1 
+                hp[i] = candles[:,2][i] 
+                nrtr[i] = hp[i] * (1 - percentage)
+    return hp, nrtr, lp, trend 
