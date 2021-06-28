@@ -1,0 +1,194 @@
+from jesse.helpers import get_candle_source, slice_candles, np_shift,same_length
+import numpy as np
+from numpy.lib.stride_tricks import as_strided
+from numba import njit, jit
+import talib 
+from typing import Union
+from jesse.helpers import get_config
+from collections import namedtuple
+from scipy.stats import rankdata
+from numpy.lib.stride_tricks import sliding_window_view
+from scipy.ndimage.filters import maximum_filter1d, minimum_filter1d
+
+PTC = namedtuple('PTC',['h', 'l', 'm','mcolor','barcolor','sqh','sql'])
+
+'''
+https://www.tradingview.com/script/AhqGvt5U-Percentile-Trend-Channel-DW/#chart-view-comments
+''' 
+
+def ptc(candles: np.ndarray, period: int= 14, ndev: float=2.0,schan: bool=True,sth:int=50,boxmult:float=1,ctype:str='Percentile Donchian', source_type: str = "close", sequential: bool = False ) -> PTC:    
+    candles = slice_candles(candles, sequential)
+    source = get_candle_source(candles, source_type=source_type)
+    ones = np.full_like(source,1)
+    zeros = np.full_like(source,0)
+    tr = talib.TRANGE(candles[:,3], candles[:,4], candles[:,2])
+    midrank = np.percentile(rolling_window(source,period),50,1)
+    highrank = np.percentile(rolling_window(source,period),100,1)
+    lowrank = np.percentile(rolling_window(source,period),0,1)
+    midrankfull = same_length(candles,midrank)
+    highrankfull = same_length(candles,highrank)
+    lowrankfull = same_length(candles,lowrank)
+    devsq = np.power(source - midrankfull, 2)
+    vari = np.percentile(rolling_window(devsq,period),50,1)
+    varifull = same_length(candles,vari)
+    stdev = np.sqrt(varifull)
+    pretr = np.percentile(rolling_window(tr,period),50,1)
+    pretrfull = same_length(candles,pretr)
+    if ctype == "Percentile Donchian":
+        h = highrankfull 
+        l = lowrankfull
+    elif ctype == "Percentile Keltner":
+        h = midrankfull + pretrfull*ndev 
+        l = midrankfull - pretrfull*ndev 
+    else:
+        h = midrankfull + stdev * ndev
+        l = midrankfull - stdev * ndev
+    maxh1 = max_rolling1(h,period)
+    maxh = same_length(candles,maxh1)
+    minl1 = min_rolling1(l,period)
+    minl = same_length(candles,minl1)
+    diff = maxh - minl 
+    mcolor, barcolor, sqh, sql  = fast_ptc(source,candles,period,diff,h,l,midrankfull,sth,ndev,boxmult,ctype,schan)
+    if sequential:
+        return PTC(h,l,midrankfull,mcolor,barcolor,sqh,sql)
+    else:
+        return PTC(h[-1],l[-1],midrankfull[-1],mcolor[-1],barcolor[-1],sqh[-1],sql[-1])
+@njit    
+def fast_ptc(source,candles,period,diff,h,l,midrankfull,sth,ndev,boxmult,ctype,schan):
+    sqz = np.full_like(source,0)
+    sqh1 = np.full_like(source,0)
+    sql1 = np.full_like(source,0)
+    sqm = np.full_like(source,0)
+    sqd = np.full_like(source,0)
+    sqh = np.full_like(source,0)
+    sql = np.full_like(source,0)
+    bullsig1 = np.full_like(source,0)
+    bullsig2 = np.full_like(source,0)
+    bearsig1 = np.full_like(source,0)
+    bearsig2 = np.full_like(source,0)
+    barcolor = np.full_like(source,0)
+    barcolor1 = np.full_like(source,0)
+    barcolor2 = np.full_like(source,0)
+    bulltrend1 = np.full_like(source,0)
+    bulltrend2 = np.full_like(source,0)
+    beartrend1 = np.full_like(source,0)
+    beartrend2 = np.full_like(source,0)
+    mid_bear = np.full_like(source,0)
+    mid_bull = np.full_like(source,0)
+    mcolor = np.full_like(source,0)
+    currng = np.full_like(source,0)
+    for i in range(period,source.shape[0]):
+        currng[i] = h[i] - l[i] 
+        sqz[i] = 1 if currng[i] <= diff[i]*(sth/100) else 0 
+        if sqz[i-1] == 0 and sqz[i] == 1: 
+            sqh1[i] = h[i] 
+            sql1[i] = l[i] 
+        else:
+            sqh1[i] = sqh1[i-1] 
+            sql1[i] = sql1[i-1] 
+        sqm[i] = (sqh1[i] + sql1[i])/2
+        sqd[i] = (sqh1[i] - sql1[i])/2 
+        sqh[i] = sqm[i] + sqd[i]*boxmult
+        sql[i] = sqm[i] - sqd[i]*boxmult 
+        if ctype == "Percentile Donchian":
+            if (h[i] > h[i-1]):
+                bullsig1[i] = 1 
+            else:   
+                bullsig1[i] = 0 
+        else:
+            if (source[i] > h[i]):
+                bullsig1[i] = 1 
+            else:
+                bullsig1[i] = 0 
+        if ctype == "Percentile Donchian":
+            if (l[i] < l[i-1]):
+                bearsig1[i] = 1 
+            else:
+                bearsig1[i] = 0 
+        else:
+            if source[i] < l[i]:
+                bearsig1[i] = 1 
+            else:
+                bearsig1[i] = 0 
+        bullsig2[i] = 1 if source[i] >= sqh[i] else 0 
+        bearsig2[i] = 1 if source[i] <= sql[i] else 0 
+        bulltrend1[i] = bulltrend1[i-1]
+        bulltrend2[i] = bulltrend2[i-1] 
+        beartrend1[i] = beartrend1[i-1] 
+        beartrend2[i] = beartrend2[i-1]
+        if bullsig1[i] == 1:
+            bulltrend1[i] = 1 
+            beartrend1[i] = 0 
+        if bearsig1[i] == 1:
+            bulltrend1[i] = 0 
+            beartrend1[i] = 1 
+        if bullsig2[i] == 1:
+            bulltrend2[i] = 1
+            beartrend2[i] = 0
+        if bearsig2[i] == 1:
+            bulltrend2[i] = 0 
+            beartrend2[i] = 1 
+        if midrankfull[i] > midrankfull[i-1]:
+            mid_bull[i] = 1 
+        elif midrankfull[i] < midrankfull[i-1]:
+            mid_bull[1] = 0 
+        else:
+            mid_bull[i] = mid_bull[i-1] 
+        if midrankfull[i] < midrankfull[i-1]:
+            mid_bear[i] = 1 
+        elif midrankfull[i] > midrankfull[i-1]:
+            mid_bear[i] = 0 
+        else:
+            mid_bear[i] = mid_bear[i-1] 
+        if mid_bull[i] == 1:
+            mcolor[i] = 1 
+        elif mid_bear[i] == 1:
+            mcolor[i] = -1 
+        else:
+            mcolor[i] = 0 
+        if bulltrend1[i] == 1 and (source[i] > midrankfull[i]) and (source[i] > source[i-1]):
+            barcolor1[i] = 2 
+        elif bulltrend1[i] == 1 and (source[i] > midrankfull[i]) and source[i] <= source[i-1]:
+            barcolor1[i] = 1
+        elif beartrend1[i] == 1 and (source[i] < midrankfull[i]) and (source[i] < source[i-1]):
+            barcolor1[i] = -2
+        elif beartrend1[i] == 1 and (source[i] < midrankfull[i]) and source[i] >= source[i-1]:
+            barcolor1[i] = -1 
+        else:
+            barcolor1[i] = 0 
+        if bulltrend1[i] == 1 and bulltrend2[i] == 1 and (source[i] > midrankfull[i]) and (source[i] > source[i-1]) and (source[i] > sqh[i]):
+            barcolor2[i] = 2
+        elif bulltrend1[i] == 1 and bulltrend2[i] == 1 and (source[i] > midrankfull[i]) and (source[i] <= source[i-1]) and (source[i] > sqh[i]):
+            barcolor2[i] = 1 
+        elif beartrend1[i] == 1 and beartrend2[i] == 1 and (source[i] < midrankfull[i]) and (source[i] < source[i-1]) and (source[i] < sql[i]):
+            barcolor2[i] = -2
+        elif beartrend1[i] == 1 and beartrend2[i] == 1 and (source[i] < midrankfull[i]) and (source[i] >= source[i-1]) and (source[i] < sql[i]) : 
+            barcolor2[i] = -1 
+        elif source[i] <= sqh[i] and source[i] >= sql[i] and bulltrend1[i] == 1 and source[i] > source[i-1] and source[i] > midrankfull[i]: 
+            barcolor2[i] = 0.5
+        elif source[i] <= sqh[i] and source[i] >= sql[i] and beartrend1[i] == 1 and source[i] < source[i-1] and source[i] < midrankfull[i]:
+            barcolor2[i] = -0.5 
+        else: 
+            barcolor2[i] = 0 
+        barcolor[i] = barcolor2[i] if schan else barcolor1[i] 
+    return mcolor, barcolor, sqh, sql
+    
+    
+    
+def max_rolling1(a, window,axis =1):
+        shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+        strides = a.strides + (a.strides[-1],)
+        rolling = np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+        return np.max(rolling,axis=axis)
+        
+def min_rolling1(a, window,axis =1):
+        shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+        strides = a.strides + (a.strides[-1],)
+        rolling = np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+        return np.min(rolling,axis=axis)        
+        
+def rolling_window(a, window):
+    shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+    strides = a.strides + (a.strides[-1],)
+    return as_strided(a, shape=shape, strides=strides)    
+      
