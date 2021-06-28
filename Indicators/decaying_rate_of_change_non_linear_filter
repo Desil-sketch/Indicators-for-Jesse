@@ -1,0 +1,57 @@
+from jesse.helpers import get_candle_source, slice_candles, np_shift
+import numpy as np
+from numba import njit
+import talib 
+from typing import Union
+from jesse.helpers import get_config
+from collections import namedtuple
+
+"""
+https://www.tradingview.com/script/yhIVjqjk-Decaying-Rate-of-Change-Non-Linear-Filter/
+""" 
+
+def drfilt(candles: np.ndarray, roc_length: int= 5, filt_length: int=30, power_length:float=1.00,perc_dec:float=0.10, smooth_length:int=9,use_smooth:bool= False, source_type: str = "close", sequential: bool = False ) -> Union[float, np.ndarray]:    
+    candles = slice_candles(candles, sequential)
+    source = get_candle_source(candles, source_type=source_type)
+    filt = f_filt(source,roc_length,filt_length,perc_dec,power_length)
+    ssf = fast_ss(source, filt,  smooth_length)
+    if use_smooth:
+        res = ssf 
+    else:
+        res = filt 
+    if sequential:
+        return res
+    else:
+        return res[-1] 
+    
+@njit    
+def fast_ss(source1,source2,length):
+    ssf = np.full_like(source1,0)
+    for i in range(source1.shape[0]):
+        pi = 2 * np.arcsin(1)
+        arg = np.sqrt(2) * pi / length
+        a1 = np.exp(-arg)
+        b1 = 2 * a1 * np.cos(arg)
+        c2 = b1 
+        c3 = -np.power(a1,2)
+        c1 = 1 - c2 - c3
+        ssf[i] = c1 * source2[i] + c2 * ssf[i-1] + c3 * ssf[i-2]
+    return ssf 
+
+@njit
+def f_filt(source, r_len, _len, _perc, _pow):
+    res = np.full_like(source,0)
+    c1 = np.full_like(source,0)
+    c2 = np.full_like(source,0)
+    for i in range(source.shape[0]):
+        c1[i] = np.abs(source[i] - source[i-r_len]) / source[i-r_len]
+        c2[i] = np.power(c1[i],_pow)
+        num = 0.0
+        denom = 0.0
+        c3 = 0.0
+        for j in range(_len):  
+            c3 = c2[i-j] * np.power(1 - _perc,(j))
+            num = num + source[i-j] * c3 
+            denom = denom + c3 
+        res[i] = num/denom 
+    return res 
