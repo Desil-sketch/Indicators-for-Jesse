@@ -4,7 +4,6 @@ from .halftrend import halftrend
 from .priceratio import priceratio
 from .donchian_hl_width_cycles import dhl
 from .murreys_math_oscillator import mm 
-from .jmarsx import jmarsx 
 from .stochcrsi import stochcrsi 
 from .highest_lowest_stoch import hlstoch 
 from .ehlers_modified_optimum_elliptic_filter import moef 
