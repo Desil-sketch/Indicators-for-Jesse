@@ -1,0 +1,69 @@
+from jesse.helpers import get_candle_source, slice_candles, np_shift
+import numpy as np
+from numba import njit,jit
+import talib 
+from typing import Union
+from jesse.helpers import get_config
+from collections import namedtuple
+from numpy.lib.stride_tricks import sliding_window_view
+from scipy.ndimage.filters import maximum_filter1d, minimum_filter1d
+from collections import namedtuple
+
+HLSTOCH = namedtuple('HLSTOCH',['k', 'd', 'rsi','peak','bottom'])
+
+"""
+https://www.tradingview.com/script/Ms4jidwk-Function-Highest-Lowest-by-PeterO/#chart-view-comments
+"""
+
+def hlstoch(candles: np.ndarray, period: int= 14, period_d: int=3, period_k: int=3, source_type: str = "close", sequential: bool = False ) -> HLSTOCH: 
+    candles = slice_candles(candles, sequential)
+    source = get_candle_source(candles, source_type=source_type)  
+    candles_close = candles[:, 2]
+    candles_high = candles[:, 3]
+    candles_low = candles[:, 4]
+    hh = talib.MAX(candles_high, period)
+    ll = talib.MIN(candles_low, period)
+    stoch = 100 * (source - ll) / (hh - ll)
+    k = talib.SMA(stoch, period_k)
+    d = talib.SMA(k, period_d)
+    rsi = fast_rsi(source,period)
+    peak,bottom = since(source,rsi, k, d)
+    if sequential:
+        return HLSTOCH(k,d,rsi,peak,bottom)
+    else:
+        return HLSTOCH(k[-1],d[-1],rsi[-1],peak[-1],bottom[-1])
+    
+    
+@njit
+def since(source,rsi, k, d):
+    _peak = np.full_like(source,0)
+    _bottom = np.full_like(source,0)
+    for i in range(source.shape[0]):  
+        if rsi[i] > _peak[i-1] or (k[i] > d[i] and not k[i-1] > d[i-1]):
+            _peak[i] = rsi[i] 
+        else:
+            _peak[i] = _peak[i-1] 
+        if rsi[i] < _bottom[i-1] or (k[i] < d[i] and not k[i-1] < d[i-1]):
+            _bottom[i] = rsi[i]
+        else:
+            _bottom[i] = _bottom[i-1] 
+    return _peak, _bottom
+        
+@njit
+def fast_rsi(source,length):
+    u = np.full_like(source, 0)
+    d = np.full_like(source, 0)
+    rs = np.full_like(source, 0)
+    res = np.full_like(source, 0)
+    alpha = 1 / length 
+    sumation1 = np.full_like(source, 1)
+    sumation2 = np.full_like(source, 1)
+    for i in range(source.shape[0]):
+        u[i] = np.maximum((source[i] - source[i-1]),0)
+        d[i] = np.maximum((source[i-1] - source[i]), 0)
+        sumation1[i] = alpha * u[i] + (1 - alpha) * (sumation1[i-1])
+        sumation2[i] = alpha * d[i] + (1 - alpha) * (sumation2[i-1]) 
+        rs[i] = sumation1[i]/sumation2[i]
+        res[i] = 100 - 100 / ( 1 + rs[i])
+    return res 
+    
