@@ -1,0 +1,36 @@
+from jesse.helpers import get_candle_source, slice_candles, np_shift
+import numpy as np
+from numba import njit
+import talib 
+from typing import Union
+from jesse.helpers import get_config, same_length, get_candle_source, slice_candles, np_shift
+from collections import namedtuple
+
+'''
+https://www.tradingview.com/script/LacHcaRi-Ehlers-Distance-Coefficient-Filter-CC/#chart-view-comments
+''' 
+  
+def edc(candles: np.ndarray, period: int= 15, source_type: str = "close", sequential: bool = False ) -> Union[float, np.ndarray]:    
+    candles = slice_candles(candles, sequential)
+    source = get_candle_source(candles, source_type=source_type)
+    filt = fast_edc(source,candles,period)
+    if sequential:
+        return filt 
+    else:
+        return filt[-1]
+
+@njit
+def fast_edc(source,candles,period):    
+    filt = np.full_like(source,0)
+    for i in range(source.shape[0]):
+        num = 0.0
+        coefSum = 0.0 
+        for j in range(period):
+            distance = 0.0 
+            for k in range(1,period):
+                distance = distance + np.power(source[i-(j)] - source[i-(k+j)],2)
+            num = num + (distance * source[i-j])
+            coefSum = coefSum + distance 
+        filt[i] = num / coefSum if coefSum != 0 else 0 
+        # sig = src > filt 
+    return filt 
