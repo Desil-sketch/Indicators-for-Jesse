@@ -9,6 +9,10 @@ from numpy.lib.stride_tricks import sliding_window_view
 from scipy.ndimage.filters import maximum_filter1d, minimum_filter1d
 from collections import namedtuple
 
+"""
+https://www.tradingview.com/script/W5lBL0MV-John-Ehlers-The-Price-Radio/#chart-view-comments
+"""
+
 PriceRatio = namedtuple('PriceRatio',['deriv','AMplus', 'AMnegative', 'fm'])
 
 def priceratio(candles: np.ndarray, period: int= 14, dev:float=1, source_type: str = "close", sequential: bool = False ) -> PriceRatio:    
