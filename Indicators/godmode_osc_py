@@ -1,0 +1,35 @@
+from jesse.helpers import get_candle_source, slice_candles, np_shift
+import numpy as np
+from numba import njit,jit
+import talib 
+from typing import Union
+from jesse.helpers import get_config, same_length, get_candle_source, slice_candles, np_shift
+from collections import namedtuple
+
+'''
+https://www.tradingview.com/script/AZn3t39d-Godmode-Oscillator-3-2/#chart-view-comments
+MoneyFlow Removed and csi changed to use source as input
+''' 
+GMODE = namedtuple('GMODE',['godmode','signal','wave'])
+
+def godmode(candles: np.ndarray, n1: int= 17, n2:int=6,n3:int=4,sig:int=6,topthreshold:int=85, bottomthreshold:int=15, source_type: str = "close", sequential: bool = False ) -> GMODE:    
+    candles = slice_candles(candles, sequential)
+    source = get_candle_source(candles, source_type=source_type)
+    tci = talib.EMA((source - talib.EMA(source,n1))/(0.025*talib.EMA(np.abs(source - talib.EMA(source,n1)),n1)),n2)+50
+    willy = 60 * (source - talib.MAX(source,n2))/(talib.MAX(source,n2) - talib.MIN(source,n2))+80
+    pc = source - np_shift(source,1,np.nan)
+    double_smoothed_pc = talib.EMA(talib.EMA(pc,n1),n2)
+    double_smoothed_pc_abs = talib.EMA(talib.EMA(np.abs(pc),n1),n2)
+    tsi_value = double_smoothed_pc / double_smoothed_pc_abs
+    csi = (talib.RSI(source,n3) + tsi_value*50+50)/2
+    godmode = (tci + csi + willy) / 3 
+    signal = talib.SMA(godmode,sig)
+    wave = talib.EMA(((godmode-signal)*2+50),n3)
+   # res = fast_godmode(source,candles,n1,n2,n3)
+    if sequential: 
+        return GMODE(godmode,signal,wave)
+    else:
+        return GMODE(godmode[-1],signal[-1],wave[-1])
+	
+	
+
