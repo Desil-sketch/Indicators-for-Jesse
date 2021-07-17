@@ -10,10 +10,9 @@ from scipy.ndimage.filters import maximum_filter1d, minimum_filter1d
 
 RSVV = namedtuple('RSVV',['m', 'ind'])
 
-
 '''
 https://www.tradingview.com/script/1IyvlXWs-Relative-Strength-Volatility-Variable-Bands-DW/#chart-view-comments
-optional outputs of deviation bands 
+ind = barcolor, 2 = bright gree, -2 = bright red, optional outputs of deviation bands 
 ''' 
 
 def rsvv(candles: np.ndarray, vper: int = 7, per: int= 7, source_type: str = "close", sequential: bool = False ) -> RSVV:    
