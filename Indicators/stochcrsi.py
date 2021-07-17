@@ -14,8 +14,6 @@ CRSI = namedtuple('CRSI',['smaK','smaD'])
 
 """
 https://www.tradingview.com/script/vWAPUAl9-Stochastic-Connors-RSI/#chart-view-comments
-slightly inaccurate percentrank because percentile of score returns a scalar
- percentrank = np.floor(scipy.stats.percentileofscore(prepercentrank[i-roclength:],prepercentrank[i],kind='rank'))
 """ 
 def stochcrsi(candles: np.ndarray, stochlength: int= 3, smoothK: int=3, smoothD: int=3, rsilength:int=3,updownlength:int=2,roclength:int=100, source_type: str = "close", sequential: bool = False ) -> CRSI: 
     candles = slice_candles(candles, sequential)
@@ -24,7 +22,7 @@ def stochcrsi(candles: np.ndarray, stochlength: int= 3, smoothK: int=3, smoothD:
     updownrsi = fast_rsi(newupdown,updownlength)
     rsi = fast_rsi(source,rsilength)
     prepercentrank = talib.ROC(source,1)
-    percentrank = (scipy.stats.rankdata(prepercentrank[-roclength:],method='average'))
+    percentrank = pine_percentrank(source,prepercentrank,roclength)
     finalpercentrank = same_length(source,percentrank)
     crsi = (rsi + updownrsi + (finalpercentrank))/3
     ll = min_filter1d_same(crsi,stochlength)
@@ -88,4 +86,14 @@ def min_filter1d_same(a, W, fillna=np.nan):
         out[:W-1] = fillna
     else:
         out = np.concatenate((np.full(W-1,fillna), out[W-1:]))
-    return out   
+    return out 
+
+@njit
+def pine_percentrank(source,source2,length):
+    pr = np.full_like(source,0)
+    for i in range(length,source.shape[0]):
+        count = 0.0
+        for j in range(1,length+1):
+            count = count + 1 if source2[i] >= source2[i-j] else count + 0 
+        pr[i] = 100 * (count / length)
+    return pr     
