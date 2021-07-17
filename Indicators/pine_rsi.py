@@ -6,7 +6,7 @@ from numba import njit
 
 from jesse.helpers import get_candle_source, slice_candles, same_length
 
-def rsi2(candles: np.ndarray, period: int = 14, source_type: str = "close", sequential: bool = False) -> Union[
+def rsi(candles: np.ndarray, period: int = 14, source_type: str = "close", sequential: bool = False) -> Union[
     float, np.ndarray]:
     candles = slice_candles(candles, sequential)
     source = get_candle_source(candles, source_type=source_type)
