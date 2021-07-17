@@ -1,3 +1,3 @@
 # Indicators for Jesse
 
-I have ported several pinescripts from tradingview, yet some indicators may be missing features.  
+I have ported several pinescripts from tradingview. Some indicators are incomplete or missing features. 
