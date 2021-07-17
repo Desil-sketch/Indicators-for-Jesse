@@ -3,7 +3,7 @@ from .weis_wave_volume import weis
 from .weighted_std import wstd 
 from .vwmacd import vwmacd 
 from .vv_ma_angles import vv_ma_angle
-from .vpf import vpf 
+from .voss import vpf 
 from .volatility import volatility
 from .vix_fix import vixfix
 from .vidyatv import vidyatv
