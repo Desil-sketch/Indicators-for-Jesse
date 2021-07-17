@@ -24,7 +24,7 @@ from .quadratic_regression_slope import qrs
 from .qqe import qqe
 from .priceratio import priceratio
 from .pivots import pivots
-from .pine_rsi import rsi2
+from .pine_rsi import rsi
 from .percentile_trend_channel import ptc 
 from .optimized_trend_tracker import ott
 from .nick_rypock_trailing_reverse import nrtr 
