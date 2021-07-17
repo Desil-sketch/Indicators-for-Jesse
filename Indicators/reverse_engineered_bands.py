@@ -31,13 +31,13 @@ def reb(candles: np.ndarray, period: int= 14, source_type: str = "close",band_ty
         lband = rrsi_l
         mband = rrsi_m 
     elif band_type == 'RStoch':
-        high = candles[:,3]
-        low = candles[:,4]
-        H = same_length(candles,max_rolling1(high,stoch_per)) 
-        L = same_length(candles,min_rolling1(low,stoch_per))
-        rstoch_h = RStoch(source,candles,source,stoch_sper,stoch_ht,H,L,new_sample,stoch_per)
-        rstoch_l = RStoch(source,candles,source,stoch_sper,stoch_lt,H,L,new_sample,stoch_per) 
-        rstoch_m = RStoch(source,candles,source,stoch_sper,50,H,L,new_sample,stoch_per) 
+        # high = candles[:,3]
+        # low = candles[:,4]
+        # H = same_length(candles,max_rolling1(high,stoch_per)) 
+        # L = same_length(candles,min_rolling1(low,stoch_per))
+        rstoch_h = RStoch(source,candles,source,stoch_sper,stoch_ht,new_sample,stoch_per)
+        rstoch_l = RStoch(source,candles,source,stoch_sper,stoch_lt,new_sample,stoch_per) 
+        rstoch_m = RStoch(source,candles,source,stoch_sper,50,new_sample,stoch_per) 
         hband = rstoch_h
         lband = rstoch_l 
         mband = rstoch_m
@@ -128,12 +128,18 @@ def Cond_RRSI(source,candles,x,cond,n,v):
 
 
 @jit(nopython=True, error_model="numpy")  
-def RStoch(source,candles,x,ns,v,H,L,cond,t):
+def RStoch(source,candles,x,ns,v,cond,t):
     RStoch = np.full_like(source,0)
+    H = np.full_like(source,0)
+    L = np.full_like(source,0)
     for i in range(t,source.shape[0]):
         if cond[i] == 1:
+            H[i] = np.amax(candles[i-(t-1):i+1,3])
+            L[i] = np.amin(candles[i-(t-1):i+1,4])
             RStoch[i] = ((v*ns)*(H[i]-L[i])/100)+L[i] 
         else:
+            H[i] = H[i-1] 
+            L[i] = L[i-1] 
             RStoch[i] = RStoch[i-1] 
     return RStoch
     
