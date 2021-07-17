@@ -14,6 +14,8 @@ PTC = namedtuple('PTC',['h', 'l', 'm','mcolor','barcolor','sqh','sql'])
 
 '''
 https://www.tradingview.com/script/AhqGvt5U-Percentile-Trend-Channel-DW/#chart-view-comments
+very useful rolling window function 
+appears to be accurate in all settings 
 ''' 
 
 def ptc(candles: np.ndarray, period: int= 14, ndev: float=2.0,schan: bool=True,sth:int=50,boxmult:float=1,ctype:str='Percentile Donchian', source_type: str = "close", sequential: bool = False ) -> PTC:    
