@@ -17,8 +17,8 @@ DHL = namedtuple('DHL',['cycle_trend', 'f_ph', 'f_pl','avg'])
 def dhl(candles: np.ndarray, length: int = 28 , source_type: str = "close", sequential: bool = False) -> DHL :     
     candles = slice_candles(candles, sequential)
     source = get_candle_source(candles, source_type=source_type)
-    _max = max_filter1d_same(candles[:,3],length)
-    _min = min_filter1d_same(candles[:,4],length)
+    _max = talib.MAX(candles[:,3],length)
+    _min = talib.MIN(candles[:,4],length)
     cycle_trend = np.full_like(source,1)
     f_ph = np.full_like(source,0)
     f_pl = np.full_like(source,0)
@@ -37,22 +37,3 @@ def dhl(candles: np.ndarray, length: int = 28 , source_type: str = "close", sequ
     else:
         return DHL(cycle_trend[-1],f_ph[-1],f_pl[-1],avg[-1])
   
-def max_filter1d_same(a, W, fillna=np.nan):
-    out_dtype = np.full(0,fillna).dtype
-    hW = (W-1)//2 # Half window size
-    out = maximum_filter1d(a,size=W, origin=hW)
-    if out.dtype is out_dtype:
-        out[:W-1] = fillna
-    else:
-        out = np.concatenate((np.full(W-1,fillna), out[W-1:]))
-    return out    
-
-def min_filter1d_same(a, W, fillna=np.nan):
-    out_dtype = np.full(0,fillna).dtype
-    hW = (W-1)//2 # Half window size
-    out = minimum_filter1d(a,size=W, origin=hW)
-    if out.dtype is out_dtype:
-        out[:W-1] = fillna
-    else:
-        out = np.concatenate((np.full(W-1,fillna), out[W-1:]))
-    return out   
