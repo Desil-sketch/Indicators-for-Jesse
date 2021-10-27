@@ -29,7 +29,7 @@ def rolling_window(a, window):
     return as_strided(a, shape=shape, strides=strides)    
 
 @njit
-def std(source,avg,per):
+def std2(source,avg,per):
     std1 = np.full_like(source,0)
     for i in range(source.shape[0]):
         sum1 = 0.0
