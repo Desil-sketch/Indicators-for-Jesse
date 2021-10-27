@@ -34,13 +34,13 @@ def Pine_Pivot(source,candles,sourcehigh,sourcelow,l,r):
     for i in range(source.shape[0]):
         highmiddlesource[i] = sourcehigh[i-r]
         lowmiddlesource[i] = sourcelow[i-r]
-        if (np.all(highmiddlesource[i] > sourcehigh[i-(l+r):i-(r)]) and np.all(highmiddlesource[i] > sourcehigh[i-(r-1):i+1])):
+        if (np.all(highmiddlesource[i] >= sourcehigh[i-(l+r):i-(r)]) and np.all(highmiddlesource[i] > sourcehigh[i-(r-1):i+1])):
             pivothigh[i] = 1  
             lastpivothighprice[i] = highmiddlesource[i]  
         else:
             pivothigh[i] = 0 
             lastpivothighprice[i] = lastpivothighprice[i-1] 
-        if (np.all(lowmiddlesource[i] < sourcelow[i-(l+r):i-(r)]) and np.all(lowmiddlesource[i] < sourcelow[i-(r-1):i+1])):    
+        if (np.all(lowmiddlesource[i] <= sourcelow[i-(l+r):i-(r)]) and np.all(lowmiddlesource[i] < sourcelow[i-(r-1):i+1])):    
             pivotlow[i] = 1  
             lastpivotlowprice[i] = lowmiddlesource[i] 
         else:
