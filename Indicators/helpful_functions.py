@@ -29,7 +29,7 @@ def rolling_window(a, window):
     return as_strided(a, shape=shape, strides=strides)    
 
 @njit
-def std2(source,avg,per):
+def std(source,avg,per):
     std1 = np.full_like(source,0)
     for i in range(source.shape[0]):
         sum1 = 0.0
@@ -62,6 +62,63 @@ def pine_ema(source1, source2, length):
         sum1[i-1] = 0 if np.isnan(sum1[i-1]) else sum1[i-1]
         sum1[i] = alpha * source2[i] + (1 - alpha) * sum1[i-1]
     return sum1 
+
+"""
+Min/Max scaling of dynamic length
+"""
+
+@njit    
+def fast_relativeVal(source2,source,candles,in_bot,in_top,out_bot,out_top):
+    clampsource = np.full_like(source2,0)
+    inDiffIncrement = np.full_like(source2,0)
+    outDiffIncrement = np.full_like(source2,0)
+    output = np.full_like(source2,0)
+    for i in range(source2.shape[0]):
+        if (source[i] > in_top):
+            clampsource[i] = in_top
+        else:
+            if source[i] < in_bot:
+                clampsource[i] = in_bot 
+            else:
+                clampsource[i] = source[i] 
+        inDiffIncrement[i] = (in_top - in_bot)
+        outDiffIncrement[i] = (out_top - out_bot)
+        output[i] = out_bot + (clampsource[i] - in_bot) * outDiffIncrement[i] / inDiffIncrement[i] 
+    return output
+    
+@njit
+def hma(source1,source,p1):
+    final1 = np.full_like(source1,0)
+    final2 = np.full_like(source1,0)
+    final3 = np.full_like(source1,0)
+    for i in range(p1,source1.shape[0]):
+        norm1 = 0.0
+        sum1 = 0.0
+        weight1 = 0.0
+        p0 = p1/2
+        for j in range(int(p0)):
+            weight1 = (p0 - (j)) * p0
+            norm1 = norm1 + weight1
+            sum1 = sum1 + source[i-j] * weight1
+        final1[i] = 2 * (sum1 / norm1)
+        weight2 = 0.0
+        norm2 = 0.0
+        sum2 = 0.0
+        for j in range(int(p1)):
+            weight2 = (p1 - (j)) * p1
+            norm2 = norm2 + weight2
+            sum2 = sum2 + source[i-j] * weight2
+        final2[i] = (-(sum2/norm2)) + final1[i]
+        p3 = np.floor(np.sqrt(p1))
+        weight3 = 0.0
+        norm3 = 0.0
+        sum3 = 0.0
+        for j in range(int(p3)):
+            weight3 = (p3 - (j)) * p3
+            norm3 = norm3 + weight3
+            sum3 = sum3 + final2[i-j] * weight3
+        final3[i] = (sum3 / norm3)
+    return final3
     
 @njit
 def pine_percentrank(source,source2,length):
@@ -97,7 +154,14 @@ def sma_numpy_acc(a, p):
 """
 sma_numpy_acc is slightly faster as a moving average 
 """ 
-    
+def highestlowestbarsback(source,candles,amplitude):
+    for j in range(0,amplitude):
+        if highestvalue <= (candles[i-j,3]):
+            highestvalue = (candles[i-j,3])
+            highindex = -j
+        if lowestvalue >= (candles[i-j,4]):
+            lowestvalue = (candles[i-j,4])
+            lowindex = -j   
 @njit
 def pine_sma(source1,source2,length):
     sum1 = np.full_like(source1,0)
