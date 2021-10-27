@@ -14,31 +14,33 @@ Possibly Accurate, needs more testing
 """
 #jesse backtest  '2021-01-03' '2021-03-02'
 
-def divergence(candles: np.ndarray, lbR:int=2, lbL:int=2, rangeUpper:int=200, rangeLower:int=0,source_type: str = "close", sequential: bool = False) -> Union[float, np.ndarray]:
+DIVERGENCES = namedtuple('Divergences',['bearCond', 'bullCond', 'hiddenBullCond','hiddenBearCond'])
+
+def divergence(candles: np.ndarray, lbR:int=2, lbL:int=2, rangeUpper:int=200, rangeLower:int=0,source_type: str = "close", sequential: bool = False) -> DIVERGENCES:
     candles = slice_candles(candles, sequential) 
-    source = get_candle_source(candles, source_type=source_type) 
-    bearCond, bullCond, hiddenBullCond, hiddenBearCond  = fast_div(source,candles,lbR,lbL,rangeUpper,rangeLower)
+    source1 = get_candle_source(candles, source_type=source_type) 
+    bearCond, bullCond, hiddenBullCond, hiddenBearCond  = fast_div(source,source,candles,lbR,lbL,rangeUpper,rangeLower)
     if sequential:
-        return bullCond
+        return DIVERGENCES(bearCond,bullCond,hiddenBearCond,hiddenBullCond)
     else:
-        return bullCond
+        return DIVERGENCES(bearCond[-1],bullCond[-1],hiddenBearCond[-1],hiddenBullCond[-1])
         
     
-def fast_div(source,candles,r,l,rangeUpper,rangeLower): 
-    highmiddlesource = np.full_like(source,0)
-    lowmiddlesource = np.full_like(source,0)
-    pivothigh = np.full_like(source,0)
-    pivotlow = np.full_like(source,0)
-    lastpivothighprice = np.full_like(source,0)
-    lastpivotlowprice = np.full_like(source,0)
-    priceslowest = np.full_like(source,np.nan)
-    priceshighest = np.full_like(source,np.nan)
-    priceshigh = np.full_like(source,np.nan)
-    priceslow = np.full_like(source,np.nan)
-    highindices = np.full_like(source,np.nan)
-    lowindices = np.full_like(source,np.nan)
-    ivar = np.full_like(source,0)
-    for i in range(source.shape[0]):
+def fast_div(source1,source,candles,r,l,rangeUpper,rangeLower): 
+    highmiddlesource = np.full_like(source1,0)
+    lowmiddlesource = np.full_like(source1,0)
+    pivothigh = np.full_like(source1,0)
+    pivotlow = np.full_like(source1,0)
+    lastpivothighprice = np.full_like(source1,0)
+    lastpivotlowprice = np.full_like(source1,0)
+    priceslowest = np.full_like(source1,np.nan)
+    priceshighest = np.full_like(source1,np.nan)
+    priceshigh = np.full_like(source1,np.nan)
+    priceslow = np.full_like(source1,np.nan)
+    highindices = np.full_like(source1,np.nan)
+    lowindices = np.full_like(source1,np.nan)
+    ivar = np.full_like(source1,0)
+    for i in range(source1.shape[0]):
         highmiddlesource[i] = source[i-r]
         lowmiddlesource[i] = source[i-l]
         if (np.all(highmiddlesource[i] >= source[i-(l+r):i-(r)]) and np.all(highmiddlesource[i] > source[i-(r-1):i+1])):
