@@ -5,10 +5,6 @@ import talib
 from typing import Union
 from jesse.helpers import get_config, same_length, get_candle_source, slice_candles, np_shift
 from collections import namedtuple
-import jsonpickle
-from tempfile import TemporaryFile
-outfile1 = TemporaryFile()
-outfile1 = TemporaryFile()
 
 #jesse backtest  '2018-01-01' '2021-10-01'
 POLYREG = namedtuple('polyreg',['minval', 'maxval', 'buysignal','sellsignal'])
