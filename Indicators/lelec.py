@@ -8,27 +8,31 @@ from typing import Union
 from numpy.lib.stride_tricks import sliding_window_view
 from scipy.ndimage.filters import maximum_filter1d, minimum_filter1d
 
-def lelec(candles: np.ndarray, period: int = 40, bars: int = 15, source_type: str = "close", sequential: bool = False) -> Union[float, np.ndarray]:    
-    candles = slice_candles(candles, sequential)
+LELEC = namedtuple('lelec',['support', 'resistance', 'up','down'])
+
+def lelec(candles: np.ndarray, period: int = 40, bars: int = 15, source_type: str = "close", sequential: bool = False) -> LELEC:    
+    candles = candles[-600:] if not sequential else slice_candles(candles, sequential)
     source = get_candle_source(candles, source_type=source_type)
     candles_high = candles[:,3]
     candles_low = candles[:,4]
     highest = talib.MAX(candles_high,period)
     lowest = talib.MIN(candles_low,period)
-    res = fast_lelec(candles, source, bars, period,highest,lowest)
+    support,resistance,up,down = fast_lelec(candles, source, bars, period,highest,lowest)
     if sequential: 
-        return res
+        return LELEC(support,resistance,up,down)
     else:    
-        return res[-1]
+        return LELEC(support[-1],resistance[-1],up[-1],down[-1])
 """
 https://www.tradingview.com/script/jB2a9GAV-Leledc-levels-IS/
-Only resistance works
+resistance only works if provided enough candle data
 """        
 #jesse backtest  '2021-01-03' '2021-03-02'
 @njit
 def fast_lelec(candles, source, bars, period,highest,lowest):
     sindex = np.full_like(source, 0)
     return1 = np.full_like(source,np.nan)
+    up = np.full_like(source,np.nan)
+    down = np.full_like(source,np.nan)
     resistance = np.full_like(source,0)
     support = np.full_like(source,0)
     bindex = np.full_like(source,0)
@@ -60,7 +64,8 @@ def fast_lelec(candles, source, bars, period,highest,lowest):
             support[i] = candles[:,4][i]
         else:
             support[i] = support[i-1]
-    return support
-    
+        up[i] = support[i] if support[i] != support[i-1] else np.nan
+        down[i] = resistance[i] if resistance[i] != resistance[i-1] else np.nan
+    return support,resistance,up,down
 
     
