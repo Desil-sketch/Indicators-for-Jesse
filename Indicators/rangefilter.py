@@ -11,9 +11,9 @@ RangeFilter = namedtuple('RangeFilter',['topdev', 'bottomdev', 'filt'])
 
 def rangefilter(candles: np.ndarray, av_n:bool=False,av_samples:int=2, movement_source:str='close', range_mult: float = 2.6, range_period: int = 14, scale: str = "Average Change", smooth: bool = False, smoothing_period: int = 9, f_type: str = "Type 1", source_type: str = "close", sequential: bool = False) -> RangeFilter:
     """"
-    Type 2 is not accurate because np.floor of calc1 variable
+    Type 2 is close to accurate if provided enough candle data. ex: candles = candles[-980:] 
     """
-    candles = slice_candles(candles, sequential)
+    candles = candles[-980:] if not sequential else slice_candles(candles, sequential)
     source = get_candle_source(candles, source_type=source_type)  
     tr = talib.TRANGE(candles[:,3],candles[:,4],candles[:,2])
     if movement_source == "Wicks":
